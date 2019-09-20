@@ -2,6 +2,7 @@
 // Author: Jack Lim
 // Date: 2019-09-19
 
+
 // mindbody credentials
 include 'mb_connect.php';
 
@@ -9,7 +10,14 @@ class DanceClass
 {
   const URL_PREFIX = 'https://clients.mindbodyonline.com/classic/ws?studioid='.MB_SITE_ID.'&classid=';
 
-  var $id, $name, $dateTime, $day, $start_time, $end_time, $instructor, $description;
+  var $id,
+      $name,
+      $dateTime,
+      $day,
+      $start_time,
+      $end_time,
+      $instructor,
+      $description;
 
   public function __construct() {}
   public function __destruct()  {}
@@ -68,15 +76,12 @@ class MindbodySchedule
   // member variables
   var $schedule;
 
-  public function __construct()
-  { $this->schedule = [];
-  }
-
+  public function __construct() { $this->schedule = []; }
   public function __destruct() {}
 
   function get_data($range)
   {
-    if (MB_API_KEY)
+    if (isset(MB_API_KEY))
     {
       $curl = curl_init();
 
@@ -123,13 +128,20 @@ class MindbodySchedule
     $classes     = $data["Classes"];
     $num_classes = count($classes);
 
+    /*
     for($x = 0; $x < $num_classes; $x++)
     {
       $class = new DanceClass();
       $class->parse($classes[$x]);
       array_push($this->schedule, $class);
     }
-
+    */
+    foreach ($classes as $class) {
+      $dance_class = new DanceClass();
+      $dance_class->parse($class);
+      $this->schedule[] = $dance_class;
+    }
+      
     usort($this->schedule, function ($a, $b)
     {
       if ($a->dateTime == $b->dateTime) {
@@ -176,6 +188,47 @@ class MindbodySchedule
 
       echo "</table>\r\n";
     }
+  }
+  
+  function toICal() {
+    $header_parameters = array(
+      'BEGIN'                           =>  'VCALENDAR',
+      'VERSION'                         =>	'2.0',
+      'PRODID'				                  =>	'-//Jack/Mindbody Schedule//NONSGML v1.0//EN',
+      'URL'						                  =>	'TBD',
+      'NAME'					                  =>	'Dance with Joy Class Schedule',
+      'X-WR-CALNAME'	                  =>	'Dance with Joy Class Schedule',
+      'DESCRIPTION'		                  =>	'Class schedule for upcoming dance courses',
+      'X-WR-CALDESC'	                  =>	'Class schedule for upcoming dance courses',
+      'REFRESH-INTERVAL;VALUE=DURATION'	=>	'PT12H',
+      'X-PUBLISHED-TTL'							    =>	'PT12H',
+    );
+    $header = implode("\r\n", $header_parameters);
+    foreach ($this->schedule as $event)
+    {
+      /*
+      $this->id          = $class_data['ClassScheduleId'];
+      $this->class_name  = $class_data['ClassDescription']['Name'];
+      $this->dateTime    = $class_data['StartDateTime'];
+      $this->day         = date('D', strtotime($this->dateTime));
+      $this->start_time  = substr($this->dateTime, 11, 5);
+      $this->end_time    = substr($class_data['EndDateTime'], 11, 5);
+      $this->description = $class_data['ClassDescription']['Description'];
+      $this->instructor  = $class_data['Staff']['FirstName'] . ' ' .
+                           $class_data['Staff']['LastName'];
+      */
+      $calendar .= "BEGIN:VEVENT\r\n".
+			"UID:".$event->id."\r\n".
+			"DTSTAMP:" . gmdate('Ymd\THis\Z', time()) . "\r\n" .
+			"DTSTART;VALUE=DATE:" . gmdate('Ymd', strtotime($event->dateTime . ' ' . $event->start_time)) . "\r\n" .
+			"DTEND;VALUE=DATE:" . gmdate('Ymd', strtotime($event->dateTime . ' ' . $event->end_time)) . "\r\n" .
+			"SUMMARY:" . $event->class_name . ", " . $event->description . ", " . $event->instructor . "\r\n".
+		  "END:VEVENT\r\n";
+    }
+    $footer = "END:VCALENDAR";
+    header('Content-type: text/calendar; charset=utf-8');
+	  header('Content-Disposition: inline; filename=dwj-class-schedule.ics');
+	  echo $header . $calendar . $footer;
   }
 }
 
